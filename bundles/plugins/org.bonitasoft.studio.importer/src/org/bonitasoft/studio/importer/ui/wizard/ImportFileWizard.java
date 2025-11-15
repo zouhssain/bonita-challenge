@@ -14,9 +14,14 @@
  */
 package org.bonitasoft.studio.importer.ui.wizard;
 
+import java.io.File;
 import org.bonitasoft.studio.importer.ImporterFactory;
+import org.bonitasoft.studio.importer.bpmn.BpmnImportSource;
+import org.bonitasoft.studio.importer.bpmn.BpmnImportSourceDialog;
+import org.bonitasoft.studio.importer.bpmn.BpmnSourceDetector;
 import org.bonitasoft.studio.importer.i18n.Messages;
 import org.eclipse.jface.wizard.Wizard;
+import org.eclipse.jface.window.Window;
 
 public class ImportFileWizard extends Wizard {
 
@@ -49,6 +54,38 @@ public class ImportFileWizard extends Wizard {
 
     @Override
     public boolean performFinish() {
+        ImportFileData data = getImportFileData();
+        final String filePath = data.getFilePath();
+        final ImporterFactory importerFactory = data.getImporterFactory();
+
+        if (filePath == null || filePath.isBlank() || importerFactory == null) {
+            return false;
+        }
+
+        final File fileToImport = new File(filePath);
+        if (!fileToImport.isFile()) {
+            return false;
+        }
+
+        BpmnImportSource importSource = null;
+        final String lowerName = fileToImport.getName().toLowerCase();
+        if (lowerName.endsWith(".bpmn") || lowerName.endsWith(".bpmn20")) {
+
+            BpmnSourceDetector detector = new BpmnSourceDetector();
+            var detected = detector.detect(fileToImport);
+
+            if (detected.isPresent()) {
+                importSource = detected.get();
+            } else {
+                BpmnImportSourceDialog dialog = new BpmnImportSourceDialog(getShell(), null);
+                if (dialog.open() != Window.OK) {
+                    return false;
+                }
+                importSource = dialog.getResult();
+            }
+        }
+        data.setBpmnImportSource(importSource);
+
         return true;
     }
 
@@ -60,4 +97,7 @@ public class ImportFileWizard extends Wizard {
         return importFileData.getImporterFactory();
     }
 
+    public BpmnImportSource getBpmnImportSource() {
+        return importFileData != null ? importFileData.getBpmnImportSource() : null;
+    }
 }

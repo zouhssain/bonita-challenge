@@ -23,10 +23,13 @@ import java.net.MalformedURLException;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.bonitasoft.studio.importer.bpmn.BpmnImportSourceReporter;
+import org.bonitasoft.studio.importer.bpmn.BpmnSourceDetector;
 import org.bonitasoft.studio.common.repository.RepositoryManager;
 import org.bonitasoft.studio.common.repository.model.IRepositoryFileStore;
 import org.bonitasoft.studio.diagram.custom.repository.DiagramFileStore;
 import org.bonitasoft.studio.diagram.custom.repository.DiagramRepositoryStore;
+import org.bonitasoft.studio.importer.bpmn.BpmnImportSource;
 import org.bonitasoft.studio.importer.ImporterFactory;
 import org.bonitasoft.studio.importer.ImporterPlugin;
 import org.bonitasoft.studio.importer.handler.ImportStatusDialogHandler;
@@ -48,6 +51,16 @@ public class ImportFileOperation implements IRunnableWithProgress {
     private IStatus status;
     private ToProcProcessor processor;
     private SkippableProgressMonitorJobsDialog progressDialog;
+
+    private BpmnImportSource importSource;
+
+    public void setImportSource(BpmnImportSource importSource) {
+        this.importSource = importSource;
+    }
+
+    public BpmnImportSource getImportSource() {
+        return importSource;
+    }
 
     public List<DiagramFileStore> getFileStoresToOpen() {
         return fileStoresToOpen;
@@ -74,6 +87,21 @@ public class ImportFileOperation implements IRunnableWithProgress {
         processor.setRepository(RepositoryManager.getInstance().getCurrentRepository().orElseThrow().getProjectId());
         processor.setProgressDialog(progressDialog);
         try {
+            BpmnImportSource sourceToReport = null;
+
+            if (fileToImport.getName().toLowerCase().endsWith(".bpmn")) {
+                if (importSource != null) {
+                    sourceToReport = importSource;
+                } else {
+                    var detector = new BpmnSourceDetector();
+                    sourceToReport = detector.detect(fileToImport).orElse(null);
+                }
+
+                if (sourceToReport != null) {
+                    var reporter = new BpmnImportSourceReporter();
+                    reporter.report(sourceToReport);
+                }
+            }
             processor.createDiagram(fileToImport.toURI().toURL(), monitor);
         } catch (final MalformedURLException e) {
             status = new Status(IStatus.ERROR, ImporterPlugin.PLUGIN_ID, e.getMessage(), e);

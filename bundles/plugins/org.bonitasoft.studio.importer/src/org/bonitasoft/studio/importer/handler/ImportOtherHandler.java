@@ -27,6 +27,7 @@ import org.bonitasoft.studio.common.ui.jface.CustomWizardDialog;
 import org.bonitasoft.studio.diagram.custom.repository.DiagramFileStore;
 import org.bonitasoft.studio.diagram.custom.repository.DiagramRepositoryStore;
 import org.bonitasoft.studio.importer.ImporterPlugin;
+import org.bonitasoft.studio.importer.bpmn.BpmnImportSource;
 import org.bonitasoft.studio.importer.i18n.Messages;
 import org.bonitasoft.studio.importer.processors.ImportFileOperation;
 import org.bonitasoft.studio.importer.ui.wizard.ImportFileWizard;
@@ -35,6 +36,9 @@ import org.eclipse.e4.core.di.annotations.CanExecute;
 import org.eclipse.e4.core.di.annotations.Execute;
 import org.eclipse.jface.dialogs.Dialog;
 import org.eclipse.swt.widgets.Display;
+import org.eclipse.core.runtime.IStatus;
+import org.eclipse.jface.dialogs.MessageDialog;
+import org.eclipse.swt.widgets.Shell;
 
 /**
  * @author Romain Bioteau
@@ -77,7 +81,29 @@ public class ImportOtherHandler {
 
             @Override
             public void run() {
-                operation.getImportStatusDialogHandler(operation.getStatus()).open(Display.getDefault().getActiveShell());
+                IStatus status = operation.getStatus();
+                Shell parentShell = Display.getDefault().getActiveShell();
+
+                if (status == null || status.isOK()) {
+                    BpmnImportSource source = operation.getImportSource();
+                    if (source != null) {
+                        StringBuilder msg = new StringBuilder();
+                        msg.append("The BPMN file has been imported successfully.\n\n");
+                        msg.append("Tool used: ").append(source.getToolName());
+                        if (source.getVersion() != null && !source.getVersion().isBlank()) {
+                            msg.append(" (version ").append(source.getVersion()).append(")");
+                        }
+
+                        MessageDialog.openInformation(
+                                parentShell,
+                                org.bonitasoft.studio.importer.i18n.Messages.importTitle,
+                                msg.toString());
+                    }
+                }
+
+                if (status != null) {
+                    operation.getImportStatusDialogHandler(status).open(parentShell);
+                }
             }
         };
     }
@@ -86,10 +112,21 @@ public class ImportOtherHandler {
         return RepositoryManager.getInstance().getRepositoryStore(DiagramRepositoryStore.class);
     }
 
-    protected ImportFileOperation createImportFileOperation(final ImportFileWizard importFileWizard, final File selectedFile,
-            final SkippableProgressMonitorJobsDialog progressManager) {
-        return new ImportFileOperation(importFileWizard.getSelectedTransfo(),
-                selectedFile, progressManager);
+    protected ImportFileOperation createImportFileOperation(final ImportFileWizard importFileWizard,
+                                                            final File selectedFile,
+                                                            final SkippableProgressMonitorJobsDialog progressManager) {
+
+        ImportFileOperation operation = new ImportFileOperation(
+                importFileWizard.getSelectedTransfo(),
+                selectedFile,
+                progressManager);
+
+        BpmnImportSource source = importFileWizard.getBpmnImportSource();
+        if (source != null) {
+            operation.setImportSource(source);
+        }
+
+        return operation;
     }
 
     protected ImportFileWizard createImportWizard() {
